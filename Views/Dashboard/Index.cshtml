@@ -52,13 +52,8 @@
 <div class="container py-4">
     <div class="sticky-header d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">Test Automation Dashboard</h2>
-
-        <select id="clientSelect" class="form-select form-select-sm" style="width:160px">
-            <option selected value="Danya B">Danya B</option>
-            <option value="Test-1">Test-1</option>
-            <option value="client2">Client 2</option>
-            <option value="client3">Client 3</option>
-        </select>
+        
+        <select id="clientSelect" class="form-select form-select-sm" style="width:160px"></select>
 
         <div class="d-flex align-items-center gap-2">
             <input id="dateSelect" class="form-control form-control-sm" style="width:160px" placeholder="Select date" />
@@ -372,6 +367,34 @@
         });
     }
 
+    function loadClients() {
+        return fetch('/clients.json')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById("clientSelect");
+                select.innerHTML = "";
+
+                data.clients.forEach(client => {
+                    const option = document.createElement("option");
+                    option.value = client;
+                    option.textContent = client;
+
+                    // Mark default client as selected
+                    if (client === data.defaultClient) {
+                        option.selected = true;
+                    }
+
+                    select.appendChild(option);
+                });
+
+                return data.defaultClient || data.clients[0]; // fallback to first if not set
+            })
+            .catch(err => {
+                console.error("Error loading clients.json:", err);
+                return null;
+            });
+    }
+
 
     $(function () {
         // Top date picker
@@ -414,8 +437,13 @@
         // Initialize
         initCharts();
         const today = new Date().toISOString().split('T')[0];
-        const defaultClient = $('#clientSelect').val();
-        loadAll(today, defaultClient);
+
+        loadClients().then(defaultClient => {
+            if (defaultClient) {
+                loadAll(today, defaultClient);
+            }
+        });
+
     });
 
 </script>
