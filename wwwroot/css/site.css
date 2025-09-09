@@ -1,0 +1,63 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    /*box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;*/
+    outline: 2px solid #0056b3; /* blue outline you like */
+    outline-offset: 2px;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+/*main {
+    flex: 1 0 auto;*/ /* grow and push footer down */
+/*}
+
+footer {
+    flex-shrink: 0;*/ /* prevent footer from overlapping */
+    /*padding: 10px 0;
+}*/
+
+footer .container {
+    margin-top: 10px; /* adds safe spacing above footer */
+}
+.chart-container canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+
+/* Make sure charts don't block clicks */
+.chart-container {
+    position: relative;
+    z-index: 0;
+}
+
+#dateSelect,
+#refreshBtn,
+#clientSelect {
+    position: relative;
+    z-index: 10; /* bring them above any overlapping elements */
+}
+
+.sticky-header {
+    position: sticky; /* makes it stick while scrolling */
+    top: 0; /* stick to the very top */
+    z-index: 1050; /* stay above other elements */
+    background: #fff; /* white background so content under doesn’t show through */
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #dee2e6; /* optional, like a navbar */
+}
+

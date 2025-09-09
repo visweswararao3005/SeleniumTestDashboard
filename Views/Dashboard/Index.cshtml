@@ -1,0 +1,422 @@
+﻿@{
+    Layout = "_Layout"; // or set Layout = null;
+}
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+
+<style>
+    /* quick custom polish */
+    .card-compact {
+        padding: 1rem;
+        border-radius: .75rem;
+        box-shadow: 0 6px 20px rgba(10,20,30,.06);
+    }
+
+    .metric {
+        font-weight: 700;
+        font-size: 1.6rem;
+    }
+
+    .sub {
+        color: #6c757d;
+        font-size: .9rem;
+    }
+
+    .chart-container {
+        display: flex;
+        justify-content: center; /* horizontal center */
+        align-items: center; /* vertical center */
+        height: 320px;
+    }
+
+    .small-txt {
+        font-size: .85rem;
+        color: #6c757d;
+    }
+
+    .table-wrap {
+        max-height: 360px;
+        overflow: auto;
+    }
+
+    .flatpickr-day.disabled {
+        color: #000 !important; /* Normal text color */
+        background: transparent !important; /* Keep normal background */
+        opacity: 1 !important; /* Remove faded look */
+        cursor: not-allowed; /* Show unselectable cursor */
+    }
+
+</style>
+
+<div class="container py-4">
+    <div class="sticky-header d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">Test Automation Dashboard</h2>
+
+        <select id="clientSelect" class="form-select form-select-sm" style="width:160px">
+            <option selected value="Danya B">Danya B</option>
+            <option value="Test-1">Test-1</option>
+            <option value="client2">Client 2</option>
+            <option value="client3">Client 3</option>
+        </select>
+
+        <div class="d-flex align-items-center gap-2">
+            <input id="dateSelect" class="form-control form-control-sm" style="width:160px" placeholder="Select date" />
+            <button id="refreshBtn" class="btn btn-primary btn-sm">Refresh</button>
+        </div>
+    </div>
+
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-3">
+        <!-- Left: Pie Chart (selected day) -->
+        <div class="col-md-6">
+            <div class="card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>Pass / Fail</strong>
+                        <div class="small-txt">Distribution for selected day</div>
+                    </div>
+                    <div class="small-txt">Updated: <span id="updatedAt">-</span></div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pieStatus"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Stats (2 rows of 2 cards) -->
+        <div class="col-md-6">
+            <div class="row g-5">
+                <!-- Top Left -->
+                <div class="col-md-7">
+                    <div class="card card-compact p-3 text-right h-100">
+                        <div class="metric text-success" id="passCount">0</div>
+                        <div class="metric text-danger mt-2" id="failCount">0</div>
+                    </div>
+                </div>
+
+                <!-- Top Right -->
+                <div class="col-md-5">
+                    <div class="card card-compact p-3 text-center h-100">
+                        <div class="metric" id="totalRuns">0</div>
+                        <div class="sub">Total Runs (Selected Day)</div>
+                        <div class="small-txt">
+                            Pass = <span id="passPct" class="text-success">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Left -->
+                <div class="col-md-7">
+                    <div class="card card-compact p-3 text-right h-100 bg-light">
+                        <h5 class="text-center mb-3">All Time</h5>
+                        <div class="metric text-success" id="overallPassCount">0</div>
+                        <div class="metric text-danger mt-2" id="overallFailCount">0</div>
+                    </div>
+                </div>
+
+                <!-- Bottom Right -->
+                <div class="col-md-5">
+                    <div class="card card-compact p-3 text-center h-100 bg-light">
+                        <div class="metric" id="overallTotalRuns">0</div>
+                        <div class="sub">Total Runs (All Time)</div>
+                        <div class="small-txt">
+                            Pass = <span id="overallPassPct" class="text-success">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- Recent Runs -->
+    <div class="row mt-3 mb-2">
+        <div class="col-12">
+            <div class="card p-3">
+                <h5 class="mb-2">Recent Test Runs</h5>
+                <div class="table-wrap">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr><th>S.no</th><th>Time</th><th>TestID</th><th>Test</th><th>Duration (s)</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="recentRuns"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+            <div class="card p-3">
+                <h5 class="mb-3">Top Executed Tests</h5>
+                <div class="chart-container"><canvas id="barTests"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card p-3">
+                <h5 class="mb-3">Average Duration (last 14 days)</h5>
+                <div class="chart-container"><canvas id="lineTrend"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔹 Test History Section -->
+    <div class="card p-3 mt-4">
+        <h5 class="mb-3">Test Case History</h5>
+        <div class="row g-3 align-items-end mb-3">
+            <div class="col-md-6">
+                <label for="historyTestId" class="form-label">Select TestID</label>
+                <select id="historyTestId" class="form-select">
+                    <option value="">All</option>
+                </select>
+            </div>
+            
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr><th>S.no</th><th>Time</th><th>TestID</th><th>Test Name</th><th>Duration (s)</th><th>Status</th></tr>
+                </thead>
+                <tbody id="testHistoryTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    const api = {
+        statusSummary: '/api/dashboardapi/status-summary',
+        overallStatusSummary: '/api/dashboardapi/overall-status-summary',
+        testsPerRun: '/api/dashboardapi/tests-per-run',
+        durationTrend: '/api/dashboardapi/duration-trend',
+        recentRuns: '/api/dashboardapi/recent-runs',
+        testHistory: '/api/dashboardapi/test-history' // 🔹 new endpoint
+    };
+
+    let pieChart, barChart, lineChart;
+    function initCharts() {
+        pieChart = new Chart(document.getElementById('pieStatus'), {
+            type: 'pie',
+            data: {
+                labels: ['Pass', 'Fail'],
+                datasets: [{ data: [0, 0], backgroundColor: ['#4CAF50', '#F44336'] }]
+            }
+        });
+        barChart = new Chart(document.getElementById('barTests'), {
+            type: 'bar',
+            data: {labels: [],datasets: [{label: 'Executions',data: [],backgroundColor: '#3b82f6'}]      },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        ticks: {
+                            align: 'start',     
+                            crossAlign: 'near',
+                         // mirror: true
+                        }
+                    }
+                }
+            }
+        });
+        lineChart = new Chart(document.getElementById('lineTrend'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Avg Duration (s)', data: [], borderColor: '#10b981', tension: 0.3 }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function loadAll(date, client) {
+        $('#updatedAt').text(new Date().toLocaleString());
+        loadStatus(date, client);
+        loadOverallStatus(client);
+        loadTestsPerRun(date, client);
+        loadDurationTrend(client);
+        loadRecentRuns(date, client);
+        loadTestHistory(date, $("#historyTestId").val(), client); // 🔹 also refresh history
+    }
+
+    function loadStatus(date, client) { 
+        // build query params dynamically
+        let query = [];
+        if (date) query.push("date=" + encodeURIComponent(date));
+        if (client) query.push("client=" + encodeURIComponent(client));
+
+        $.getJSON(api.statusSummary + (query.length ? "?" + query.join("&") : ""), function (data) {
+            $('#passCount').text("Pass - " + data.pass);
+            $('#failCount').text("Fail - " + data.fail);
+            const total = data.pass + data.fail;
+            $('#totalRuns').text(total);
+            $('#passPct').text(total ? Math.round(100 * data.pass / total) + '%' : '0%');
+            pieChart.data.datasets[0].data = [data.pass, data.fail];
+           
+            pieChart.update();
+        });
+    }
+
+    function loadOverallStatus(client) {
+        let query = [];
+        if (client) query.push("client=" + encodeURIComponent(client));
+
+        $.getJSON(api.overallStatusSummary + (query.length ? "?" + query.join("&") : ""), function (overall) {
+            $('#overallPassCount').text("Pass - " + overall.pass);
+            $('#overallFailCount').text("Fail - " + overall.fail);
+            const total = overall.pass + overall.fail;
+            $('#overallTotalRuns').text(total);
+            $('#overallPassPct').text(total ? Math.round(100 * overall.pass / total) + '%' : '0%');
+            // pieChart.data.datasets[0].data = [data.passed, data.failed];
+            // pieChart.update();
+        });
+    }
+
+    function loadTestsPerRun(date, client) {
+        let query = [];
+        if (date) query.push("date=" + encodeURIComponent(date));
+        if (client) query.push("client=" + encodeURIComponent(client));
+
+        $.getJSON(api.testsPerRun + (query.length ? "?" + query.join("&") : ""), function (data) {
+            const top = data.slice(0, 20);
+            barChart.data.labels = top.map(x => x.testName);
+            barChart.data.datasets[0].data = top.map(x => x.count);
+            barChart.update();
+        });
+    }
+
+    function loadDurationTrend(client) {
+        let query = [];
+        if (client) query.push("client=" + encodeURIComponent(client));
+        query.push("days=14");
+
+        $.getJSON(api.durationTrend + (query.length ? "?" + query.join("&") : ""), function (data) {
+            lineChart.data.labels = data.map(x => {
+                let d = new Date(x.date);
+                return d.toISOString().slice(0, 10).replace(/-/g, "/"); // "YYYY/MM/DD"
+            });
+            lineChart.data.datasets[0].data = data.map(x => parseFloat(x.avgDuration).toFixed(2));
+            lineChart.update();
+        });
+    }
+
+    function loadRecentRuns(date, client) {
+        let query = [];
+        if (date) query.push("date=" + encodeURIComponent(date));
+        if (client) query.push("client=" + encodeURIComponent(client));
+        $.getJSON(api.recentRuns + (query.length ? "?" + query.join("&") : ""), function (data) {
+            $('#recentRuns').html(data.map((r, index) => `
+                <tr>
+                    <td>${index + 1}</td> <!-- 🔹 Serial number -->
+                    <td>${(() => {
+                    const d = new Date(r.startTime);
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                })()}</td>
+                    <td>${r.testID || ''}</td>
+                    <td>${r.testName}</td>
+                    <td>${r.durationSeconds}</td>
+                    <td>
+                        <span class="badge ${r.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
+                            ${r.status}
+                        </span>
+                    </td>
+                </tr>`
+            ).join(''));
+        });
+    }
+
+    // 🔹 Load Test History (fills dropdown only if empty)
+    function loadTestHistory(date, testId, client) {
+        let query = [];
+        if (date) query.push("date=" + encodeURIComponent(date));
+        if (testId) query.push("testId=" + encodeURIComponent(testId))
+        if (client) query.push("client=" + encodeURIComponent(client));
+
+        $.getJSON(api.testHistory + (query.length ? "?" + query.join("&") : ""), function (data) {
+            // Only populate dropdown if it's empty (avoid resetting selection)
+            if ($("#historyTestId option").length <= 1) {
+                $("#historyTestId").empty().append('<option value="">All</option>');
+                [...new Set(data.map(d => d.testID))].forEach(id => {
+                    $("#historyTestId").append(`<option value="${id}">${id}</option>`);
+                });
+            }
+
+            // Fill table with S.no
+            $("#testHistoryTable").html(data.map((item, index) => `
+                <tr>
+                    <td>${index + 1}</td> <!-- 🔹 Serial number -->
+                    <td>${(() => {
+                    const d = new Date(item.startTime);
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                })()}</td>
+                    <td>${item.testID}</td>
+                    <td>${item.testName}</td>
+                    <td>${item.duration}</td>
+                    <td>
+                        <span class="badge ${item.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
+                            ${item.status}
+                        </span>
+                    </td>
+                </tr>`
+            ).join(''));
+        });
+    }
+
+
+    $(function () {
+        // Top date picker
+        flatpickr('#dateSelect', {
+            dateFormat: 'Y-m-d',
+            defaultDate: new Date(),
+            onChange: (d, str) => {
+                const client = $('#clientSelect').val();
+                // 🔹 Clear History dropdown
+                $("#historyTestId").empty().append('<option value="">All</option>');
+                loadAll(str, client); // 🔹 pass both date + client
+            }
+        });
+
+        // Refresh button → reload all
+        $('#refreshBtn').click(() => {
+            const date = $('#dateSelect').val();
+            const client = $('#clientSelect').val();
+            loadAll(date, client); // 🔹 pass both date + client
+        });
+
+        // History TestID dropdown change → filter table
+        $('#historyTestId').on('change', function () {
+            const date = $('#dateSelect').val();
+            const selectedId = $(this).val();
+            const client = $('#clientSelect').val();
+            loadTestHistory(date, selectedId, client);
+        });
+
+        // 🔹 Client dropdown change → reload all with current date
+        $('#clientSelect').on('change', function () {
+            const client = $(this).val();
+            const date = $('#dateSelect').val();
+
+            // 🔹 Clear History dropdown
+            $("#historyTestId").empty().append('<option value="">All</option>');
+            loadAll(date, client); // 🔹 pass both
+        });
+
+        // Initialize
+        initCharts();
+        const today = new Date().toISOString().split('T')[0];
+        const defaultClient = $('#clientSelect').val();
+        loadAll(today, defaultClient);
+    });
+
+</script>
+
