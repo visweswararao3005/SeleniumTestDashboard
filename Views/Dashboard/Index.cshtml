@@ -135,7 +135,7 @@
                 <div class="table-wrap">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
-                            <tr><th>S.no</th><th>Time</th><th>TestID</th><th>Test</th><th>Duration (s)</th><th>Status</th></tr>
+                            <tr><th>Sl.No</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test</th><th>Duration(s)</th><th>Status</th></tr>
                         </thead>
                         <tbody id="recentRuns"></tbody>
                     </table>
@@ -164,18 +164,23 @@
     <div class="card p-3 mt-4">
         <h5 class="mb-3">Test Case History</h5>
         <div class="row g-3 align-items-end mb-3">
-            <div class="col-md-6">
+            <div class="col-md-3">
                 <label for="historyTestId" class="form-label">Select TestID</label>
                 <select id="historyTestId" class="form-select">
                     <option value="">All</option>
                 </select>
             </div>
-            
+            <div class="col-md-3">
+                <label for="ScreenId" class="form-label">Select Screen</label>
+                <select id="ScreenId" class="form-select">
+                    <option value="">All</option>
+                </select>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-bordered table-hover">
                 <thead class="table-light">
-                    <tr><th>S.no</th><th>Time</th><th>TestID</th><th>Test Name</th><th>Duration (s)</th><th>Status</th></tr>
+                    <tr><th>Sl.no</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test Name</th><th>Duration(s)</th><th>Status</th></tr>
                 </thead>
                 <tbody id="testHistoryTable"></tbody>
             </table>
@@ -239,7 +244,7 @@
         loadTestsPerRun(date, client);
         loadDurationTrend(client);
         loadRecentRuns(date, client);
-        loadTestHistory(date, $("#historyTestId").val(), client); // 🔹 also refresh history
+        loadTestHistory(date, $("#historyTestId").val(), client, $("#ScreenId").val()) // 🔹 also refresh history  $("#historyTestId").val(),$("#ScreenId").val()
     }
 
     function loadStatus(date, client) { 
@@ -295,9 +300,10 @@
 
         $.getJSON(api.durationTrend + (query.length ? "?" + query.join("&") : ""), function (data) {
             lineChart.data.labels = data.map(x => {
-                let d = new Date(x.date);
-                return d.toISOString().slice(0, 10).replace(/-/g, "/"); // "YYYY/MM/DD"
+                let d = new Date(x.date + "Z"); // treat as UTC midnight
+                return d.toISOString().slice(0, 10).replace(/-/g, "/");
             });
+
             lineChart.data.datasets[0].data = data.map(x => parseFloat(x.avgDuration).toFixed(2));
             lineChart.update();
         });
@@ -316,25 +322,27 @@
                     const pad = (n) => n.toString().padStart(2, '0');
                     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
                 })()}</td>
-                    <td>${r.testID || ''}</td>
-                    <td>${r.testName}</td>
-                    <td>${r.durationSeconds}</td>
-                    <td>
-                        <span class="badge ${r.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
-                            ${r.status}
-                        </span>
-                    </td>
-                </tr>`
+                        <td>${r.testID || ''}</td>
+                        <td>${r.screen}</td>
+                        <td>${r.testName}</td>
+                        <td>${r.durationSeconds}</td>
+                        <td>
+                            <span class="badge ${r.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
+                                ${r.status}
+                            </span>
+                        </td>
+                    </tr>`
             ).join(''));
         });
     }
 
     // 🔹 Load Test History (fills dropdown only if empty)
-    function loadTestHistory(date, testId, client) {
+    function loadTestHistory(date, testId, client, screen) {
         let query = [];
         if (date) query.push("date=" + encodeURIComponent(date));
         if (testId) query.push("testId=" + encodeURIComponent(testId))
         if (client) query.push("client=" + encodeURIComponent(client));
+        if (screen) query.push("screen=" + encodeURIComponent(screen));
 
         $.getJSON(api.testHistory + (query.length ? "?" + query.join("&") : ""), function (data) {
             // Only populate dropdown if it's empty (avoid resetting selection)
@@ -344,6 +352,16 @@
                     $("#historyTestId").append(`<option value="${id}">${id}</option>`);
                 });
             }
+            // 🔹 Populate Screen dropdown (if empty)
+            if ($("#ScreenId option").length <= 1) {
+                $("#ScreenId").empty().append('<option value="">All</option>');
+                [...new Set(data.map(d => d.screen))].forEach(screenName => {
+                    if (screenName) {
+                        $("#ScreenId").append(`<option value="${screenName}">${screenName}</option>`);
+                    }
+                });
+            }
+
 
             // Fill table with S.no
             $("#testHistoryTable").html(data.map((item, index) => `
@@ -353,8 +371,9 @@
                     const d = new Date(item.startTime);
                     const pad = (n) => n.toString().padStart(2, '0');
                     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                })()}</td>
+                      })()}</td>
                     <td>${item.testID}</td>
+                    <td>${item.screen}</td>
                     <td>${item.testName}</td>
                     <td>${item.duration}</td>
                     <td>
@@ -368,7 +387,7 @@
     }
 
     function loadClients() {
-        return fetch('/clients.json')
+        fetch('/clients.json?cacheBust=' + Date.now())
             .then(response => response.json())
             .then(data => {
                 const select = document.getElementById("clientSelect");
@@ -394,6 +413,23 @@
                 return null;
             });
     }
+   
+    function loadScreens() {
+        return fetch('/screens.json')   // make sure screens.json is in wwwroot
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById("ScreenId");
+                select.innerHTML = '<option value="">All</option>'; // always add "All"
+
+                Object.entries(data).forEach(([key, value]) => {
+                    const option = document.createElement("option");
+                    option.value = value;   // e.g. "Login"
+                    option.textContent = value; // e.g. "Login"
+                    select.appendChild(option);
+                });
+            })
+            .catch(err => console.error("Error loading screens.json:", err));
+    }
 
 
     $(function () {
@@ -405,6 +441,7 @@
                 const client = $('#clientSelect').val();
                 // 🔹 Clear History dropdown
                 $("#historyTestId").empty().append('<option value="">All</option>');
+                $("#ScreenId").empty().append('<option value="">All</option>');
                 loadAll(str, client); // 🔹 pass both date + client
             }
         });
@@ -413,6 +450,11 @@
         $('#refreshBtn').click(() => {
             const date = $('#dateSelect').val();
             const client = $('#clientSelect').val();
+
+            // 🔹 Reset dropdowns back to "All"
+            $("#historyTestId").val("");
+            $("#ScreenId").val("");
+
             loadAll(date, client); // 🔹 pass both date + client
         });
 
@@ -421,7 +463,16 @@
             const date = $('#dateSelect').val();
             const selectedId = $(this).val();
             const client = $('#clientSelect').val();
-            loadTestHistory(date, selectedId, client);
+            const screen = $('#ScreenId').val();
+            loadTestHistory(date, selectedId, client, screen);
+        });
+
+        $('#ScreenId').on('change', function () {
+            const date = $('#dateSelect').val();
+            const client = $('#clientSelect').val();
+            const selectedId = $('#historyTestId').val();
+            const screen = $(this).val();
+            loadTestHistory(date, selectedId, client, screen);
         });
 
         // 🔹 Client dropdown change → reload all with current date
@@ -431,6 +482,7 @@
 
             // 🔹 Clear History dropdown
             $("#historyTestId").empty().append('<option value="">All</option>');
+            $("#ScreenId").empty().append('<option value="">All</option>');
             loadAll(date, client); // 🔹 pass both
         });
 
@@ -443,6 +495,8 @@
                 loadAll(today, defaultClient);
             }
         });
+
+        loadScreens();
 
     });
 

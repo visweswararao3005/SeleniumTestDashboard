@@ -80,6 +80,7 @@ public class DashboardApiController : ControllerBase
                 t.TestName,
                 t.StartTime,
                 t.EndTime,
+                t.Screen,
                 DurationSeconds = EF.Functions.DateDiffSecond(t.StartTime, t.EndTime),
                 t.Status
             })
@@ -90,7 +91,7 @@ public class DashboardApiController : ControllerBase
 
     // ✅ New: Test Case History by date (and optional TestID)
     [HttpGet("test-history")]
-    public async Task<IActionResult> GetTestHistory(string client, [FromQuery] string date, [FromQuery] string testId = null)
+    public async Task<IActionResult> GetTestHistory(string client, [FromQuery] string date, [FromQuery] string testId = null, [FromQuery] string screen = null)
     {
         var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
 
@@ -100,6 +101,10 @@ public class DashboardApiController : ControllerBase
         if (!string.IsNullOrEmpty(testId))
         {
             query = query.Where(r => r.TestID == testId);
+        }
+        if (!string.IsNullOrEmpty(screen))
+        {
+            query = query.Where(r => r.Screen == screen);
         }
 
         var data = await query
@@ -111,6 +116,7 @@ public class DashboardApiController : ControllerBase
                 r.TestName,
                 r.StartTime,
                 r.EndTime,
+                r.Screen,
                 Duration = EF.Functions.DateDiffSecond(r.StartTime, r.EndTime),
                 r.Status
             })
