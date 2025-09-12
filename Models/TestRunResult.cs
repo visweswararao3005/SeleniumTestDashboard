@@ -13,5 +13,6 @@ namespace TestDashboard.Models
         public string Status { get; set; }
         public DateTime RunDate { get; set; }
         public string ClientName { get; set; }
+        public string Screen { get; set; }
     }
 }
