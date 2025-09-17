@@ -51,7 +51,7 @@
 
 <div class="container py-4">
     <div class="sticky-header d-flex justify-content-between align-items-center mb-3">
-        <h2 class="mb-0">Test Automation Dashboard</h2>
+        <h2 class="mb-0">OPAL - Test Automation Dashboard</h2>
         
         <select id="clientSelect" class="form-select form-select-sm" style="width:160px"></select>
 
@@ -60,7 +60,6 @@
             <button id="refreshBtn" class="btn btn-primary btn-sm">Refresh</button>
         </div>
     </div>
-
 
     <!-- KPI Cards -->
     <div class="row g-3 mb-3">
@@ -126,7 +125,6 @@
 
     </div>
 
-
     <!-- Recent Runs -->
     <div class="row mt-3 mb-2">
         <div class="col-12">
@@ -135,7 +133,7 @@
                 <div class="table-wrap">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
-                            <tr><th>Sl.No</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test</th><th>Duration(s)</th><th>Status</th></tr>
+                            <tr><th>Sl.No</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test</th><th>Duration(sec)</th><th>Status</th></tr>
                         </thead>
                         <tbody id="recentRuns"></tbody>
                     </table>
@@ -180,10 +178,33 @@
         <div class="table-responsive">
             <table class="table table-bordered table-hover">
                 <thead class="table-light">
-                    <tr><th>Sl.no</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test Name</th><th>Duration(s)</th><th>Status</th></tr>
+                    <tr><th>Sl.No</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test Name</th><th>Duration(sec)</th><th>Status</th></tr>
                 </thead>
                 <tbody id="testHistoryTable"></tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <div id="paginationControls" class="btn-group">
+                    <button id="firstPage" class="btn btn-sm btn-outline-secondary">|⯇</button>  @* First *@
+                    <button id="prevPage" class="btn btn-sm btn-outline-secondary">⯇</button> @* Prev *@
+
+                    <button id="nextPage" class="btn btn-sm btn-outline-secondary">⯈</button> @* Next *@
+                    <button id="lastPage" class="btn btn-sm btn-outline-secondary">⯈|</button>@* Last *@
+                </div>
+                <div>
+                    <label for="pageSize">Page size:</label>
+                    <select id="pageSize" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+
+                <div id="paginationControls" class="btn-group">
+                    <span id="pageInfo" class="mx-2 align-self-center small text-muted"></span>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -193,6 +214,8 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
 <script>
     const api = {
         statusSummary: '/api/dashboardapi/status-summary',
@@ -232,9 +255,51 @@
         });
         lineChart = new Chart(document.getElementById('lineTrend'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Avg Duration (s)', data: [], borderColor: '#10b981', tension: 0.3 }] },
-            options: { responsive: true, maintainAspectRatio: false }
+            data: {
+                datasets: [{
+                    label: 'Avg Duration (sec)',
+                    data: [], // {x: date, y: avg}
+                    borderColor: '#10b981',
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            tooltipFormat: 'yyyy-MM-dd'
+                        },
+                        ticks: {
+                            autoSkip: true,
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const p = context.raw;
+                                return [
+                                    `Average Duration: ${p.y.toFixed(2)} sec`,
+                                    `Total Duration: ${p.totalDuration.toFixed(2)} sec`,
+                                    `Count: ${p.count}`
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
         });
+
     }
 
     function loadAll(date, client) {
@@ -299,12 +364,12 @@
         query.push("days=14");
 
         $.getJSON(api.durationTrend + (query.length ? "?" + query.join("&") : ""), function (data) {
-            lineChart.data.labels = data.map(x => {
-                let d = new Date(x.date + "Z"); // treat as UTC midnight
-                return d.toISOString().slice(0, 10).replace(/-/g, "/");
-            });
-
-            lineChart.data.datasets[0].data = data.map(x => parseFloat(x.avgDuration).toFixed(2));
+            lineChart.data.datasets[0].data = data.map(x => ({
+                x: new Date(x.date),
+                y: parseFloat(x.avgDuration),
+                totalDuration: parseFloat(x.totalDuration),
+                count: x.count
+            }));
             lineChart.update();
         });
     }
@@ -363,31 +428,96 @@
             }
 
 
-            // Fill table with S.no
-            $("#testHistoryTable").html(data.map((item, index) => `
-                <tr>
-                    <td>${index + 1}</td> <!-- 🔹 Serial number -->
-                    <td>${(() => {
-                    const d = new Date(item.startTime);
-                    const pad = (n) => n.toString().padStart(2, '0');
-                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                      })()}</td>
-                    <td>${item.testID}</td>
-                    <td>${item.screen}</td>
-                    <td>${item.testName}</td>
-                    <td>${item.duration}</td>
-                    <td>
-                        <span class="badge ${item.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
-                            ${item.status}
-                        </span>
-                    </td>
-                </tr>`
-            ).join(''));
+            // // Fill table with S.no
+            // $("#testHistoryTable").html(data.map((item, index) => `
+            //     <tr>
+            //         <td>${index + 1}</td> <!-- 🔹 Serial number -->
+            //         <td>${(() => {
+            //         const d = new Date(item.startTime);
+            //         const pad = (n) => n.toString().padStart(2, '0');
+            //         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            //           })()}</td>
+            //         <td>${item.testID}</td>
+            //         <td>${item.screen}</td>
+            //         <td>${item.testName}</td>
+            //         <td>${item.duration}</td>
+            //         <td>
+            //             <span class="badge ${item.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
+            //                 ${item.status}
+            //             </span>
+            //         </td>
+            //     </tr>`
+            // ).join(''));
+
+            // Save all rows in global variable
+            testHistoryData = data;
+
+            // Reset to first page whenever new data is loaded
+            currentPage = 1;
+
+            // Render the first page
+            renderTestHistoryTable();
+
+            // Setup buttons and page size dropdown
+            setupPaginationControls();
+
+        });
+    }
+
+    let testHistoryData = []; // global store
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function renderTestHistoryTable() {
+        const total = testHistoryData.length;
+        const start = (currentPage - 1) * pageSize;
+        const end = Math.min(start + pageSize, total);
+        const pageData = testHistoryData.slice(start, end);
+
+        // Fill table
+        $("#testHistoryTable").html(pageData.map((item, index) => `
+            <tr>
+                <td>${start + index + 1}</td>
+                <td>${(() => {
+                const d = new Date(item.startTime);
+                const pad = (n) => n.toString().padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            })()}</td>
+                <td>${item.testID}</td>
+                <td>${item.screen}</td>
+                <td>${item.testName}</td>
+                <td>${item.duration}</td>
+                <td>
+                    <span class="badge ${item.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
+                        ${item.status}
+                    </span>
+                </td>
+            </tr>`
+        ).join(''));
+
+        // Update footer info
+        $("#pageInfo").text(`Showing ${start + 1} to ${end} of ${total}`);
+
+        // Enable/disable buttons
+        $("#firstPage, #prevPage").prop("disabled", currentPage === 1);
+        $("#nextPage, #lastPage").prop("disabled", end >= total);
+    }
+
+    function setupPaginationControls() {
+        $("#firstPage").off("click").on("click", () => { currentPage = 1; renderTestHistoryTable(); });
+        $("#prevPage").off("click").on("click", () => { if (currentPage > 1) { currentPage--; renderTestHistoryTable(); } });
+        $("#nextPage").off("click").on("click", () => { if (currentPage * pageSize < testHistoryData.length) { currentPage++; renderTestHistoryTable(); } });
+        $("#lastPage").off("click").on("click", () => { currentPage = Math.ceil(testHistoryData.length / pageSize); renderTestHistoryTable(); });
+
+        $("#pageSize").off("change").on("change", function () {
+            pageSize = parseInt($(this).val());
+            currentPage = 1; // reset to first page
+            renderTestHistoryTable();
         });
     }
 
     function loadClients() {
-        fetch('/clients.json?cacheBust=' + Date.now())
+        return fetch('/clients.json?cacheBust=' + Date.now()) // ✅ return this
             .then(response => response.json())
             .then(data => {
                 const select = document.getElementById("clientSelect");
@@ -398,7 +528,6 @@
                     option.value = client;
                     option.textContent = client;
 
-                    // Mark default client as selected
                     if (client === data.defaultClient) {
                         option.selected = true;
                     }
@@ -406,13 +535,14 @@
                     select.appendChild(option);
                 });
 
-                return data.defaultClient || data.clients[0]; // fallback to first if not set
+                return data.defaultClient || data.clients[0]; // fallback
             })
             .catch(err => {
                 console.error("Error loading clients.json:", err);
                 return null;
             });
     }
+
    
     function loadScreens() {
         return fetch('/screens.json')   // make sure screens.json is in wwwroot
@@ -430,7 +560,6 @@
             })
             .catch(err => console.error("Error loading screens.json:", err));
     }
-
 
     $(function () {
         // Top date picker
@@ -495,9 +624,6 @@
                 loadAll(today, defaultClient);
             }
         });
-
-        loadScreens();
-
     });
 
 </script>
