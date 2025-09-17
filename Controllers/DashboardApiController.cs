@@ -51,12 +51,20 @@ public class DashboardApiController : ControllerBase
     public async Task<IActionResult> DurationTrend(string client, int days = 14)
     {
         var start = DateTime.Today.AddDays(-days + 1);
+
         var data = await _db.TestRunResults
             .Where(r => r.RunDate >= start && r.ClientName == client)
             .GroupBy(r => r.RunDate)
-            .Select(g => new { Date = g.Key, AvgDuration = g.Average(x => x.DurationSeconds) })
+            .Select(g => new
+            {
+                Date = g.Key,
+                AvgDuration = g.Average(x => x.DurationSeconds),
+                TotalDuration = g.Sum(x => x.DurationSeconds),
+                Count = g.Count()
+            })
             .OrderBy(x => x.Date)
             .ToListAsync();
+
         return Ok(data);
     }
 
