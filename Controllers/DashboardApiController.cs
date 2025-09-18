@@ -8,13 +8,20 @@ using Microsoft.EntityFrameworkCore;
 [ApiController]
 public class DashboardApiController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
-    public DashboardApiController(ApplicationDbContext db) => _db = db;
+    private readonly DbContextFactory _factory;
 
+    public DashboardApiController(DbContextFactory factory)
+    {
+        _factory = factory;
+    }
     // Pie: Pass vs Fail counts (today or range)
     [HttpGet("status-summary")]
     public async Task<IActionResult> StatusSummary(string client, string date = null )
     {
+        using var _db = _factory.Create(client);
+        if(string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
         var q = _db.TestRunResults.Where(r => r.RunDate == target.Date);
         var pass = await q.CountAsync(r => r.Status == "Pass" && r.ClientName == client);
@@ -26,6 +33,10 @@ public class DashboardApiController : ControllerBase
     [HttpGet("overall-status-summary")]
     public async Task<IActionResult> OverallStatusSummary(string client)
     {
+        using var _db = _factory.Create(client);
+        if (string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         var q = _db.TestRunResults;
         var pass = await q.CountAsync(r => r.Status == "Pass" && r.ClientName == client);
         var fail = await q.CountAsync(r => r.Status == "Fail" && r.ClientName == client);
@@ -36,6 +47,10 @@ public class DashboardApiController : ControllerBase
     [HttpGet("tests-per-run")]
     public async Task<IActionResult> TestsPerRun(string client,string date = null)
     {
+        using var _db = _factory.Create(client);
+        if (string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
         var data = await _db.TestRunResults
             .Where(r => r.RunDate == target.Date && r.ClientName == client)
@@ -50,6 +65,10 @@ public class DashboardApiController : ControllerBase
     [HttpGet("duration-trend")]
     public async Task<IActionResult> DurationTrend(string client, int days = 14)
     {
+        using var _db = _factory.Create(client);
+        if (string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         var start = DateTime.Today.AddDays(-days + 1);
 
         var data = await _db.TestRunResults
@@ -72,6 +91,10 @@ public class DashboardApiController : ControllerBase
     [HttpGet("recent-runs")]
     public async Task<IActionResult> GetRecentRuns(string client, [FromQuery] DateTime? date = null)
     {
+        using var _db = _factory.Create(client);
+        if (string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         // find the latest RunID
         var latestRunId = await _db.TestRunResults
             .Where(t => t.ClientName == client)
@@ -101,6 +124,10 @@ public class DashboardApiController : ControllerBase
     [HttpGet("test-history")]
     public async Task<IActionResult> GetTestHistory(string client, [FromQuery] string date, [FromQuery] string testId = null, [FromQuery] string screen = null)
     {
+        using var _db = _factory.Create(client);
+        if (string.IsNullOrEmpty(client))
+            client = "Test-1";
+
         var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
 
         var query = _db.TestRunResults
