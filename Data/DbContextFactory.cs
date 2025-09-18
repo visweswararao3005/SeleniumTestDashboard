@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using System.Collections.Generic;
 
 namespace TestDashboard.Data
 {
@@ -14,17 +15,20 @@ namespace TestDashboard.Data
 
         public ApplicationDbContext Create(string client)
         {
-            string connKey = client switch
+            if (string.IsNullOrEmpty(client))
+                throw new ArgumentNullException(nameof(client));
+
+            // Try to get connection string from appsettings.json
+            var conn = _config.GetConnectionString(client);
+
+            if (string.IsNullOrWhiteSpace(conn))
             {
-                "BestPet" => "BestPet",
-                "Capital" => "Capital",
-                "Danya B" => "DanyaB",
-                "Test-1" => "DefaultConnection",
-                _ => "DefaultConnection"  // fallback
-            };
+                // Throw KeyNotFound so controller can catch and handle it gracefully
+                throw new KeyNotFoundException($"Client '{client}' is not configured.");
+            }
 
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseSqlServer(_config.GetConnectionString(connKey))
+                .UseSqlServer(conn)
                 .Options;
 
             return new ApplicationDbContext(options);
