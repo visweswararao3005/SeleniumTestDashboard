@@ -1,7 +1,9 @@
 ﻿@{
     Layout = "_Layout"; // or set Layout = null;
+    var client = ViewBag.Client as string ?? "";
 }
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
 
@@ -47,13 +49,60 @@
         cursor: not-allowed; /* Show unselectable cursor */
     }
 
+    #loadingOverlay {
+        display: none; /* hidden by default */
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.7);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 </style>
 
+<!-- 🔄 Loading Overlay -->
+<div id="loadingOverlay">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Error</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="errorModalBody">
+                <!-- Error message goes here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="errorModalCloseBtn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="container py-4">
+
     <div class="sticky-header d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">OPAL - Test Automation Dashboard</h2>
-        
-        <select id="clientSelect" class="form-select form-select-sm" style="width:160px"></select>
+
+        @if (string.IsNullOrEmpty(client))
+        {
+            <select id="clientSelect" class="form-select form-select-sm" style="width:160px"></select>
+        }
+        else
+        {
+            <h4>@client</h4>
+            <input type="hidden" id="clientSelect" value="@client" />
+        }
 
         <div class="d-flex align-items-center gap-2">
             <input id="dateSelect" class="form-control form-control-sm" style="width:160px" placeholder="Select date" />
@@ -204,29 +253,33 @@
                     <span id="pageInfo" class="mx-2 align-self-center small text-muted"></span>
                 </div>
             </div>
-
         </div>
     </div>
 
 </div>
 
-<!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 <script>
+    // Reload page when modal "Close" button is clicked
+    document.getElementById('errorModalCloseBtn').addEventListener('click', () => {
+        location.reload();
+    });
+
     const api = {
         statusSummary: '/api/dashboardapi/status-summary',
         overallStatusSummary: '/api/dashboardapi/overall-status-summary',
         testsPerRun: '/api/dashboardapi/tests-per-run',
         durationTrend: '/api/dashboardapi/duration-trend',
         recentRuns: '/api/dashboardapi/recent-runs',
-        testHistory: '/api/dashboardapi/test-history' // 🔹 new endpoint
+        testHistory: '/api/dashboardapi/test-history'
     };
 
     let pieChart, barChart, lineChart;
+
     function initCharts() {
         pieChart = new Chart(document.getElementById('pieStatus'), {
             type: 'pie',
@@ -235,53 +288,33 @@
                 datasets: [{ data: [0, 0], backgroundColor: ['#4CAF50', '#F44336'] }]
             }
         });
+
         barChart = new Chart(document.getElementById('barTests'), {
             type: 'bar',
-            data: {labels: [],datasets: [{label: 'Executions',data: [],backgroundColor: '#3b82f6'}]      },
+            data: { labels: [], datasets: [{ label: 'Executions', data: [], backgroundColor: '#3b82f6' }] },
             options: {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    y: {
-                        ticks: {
-                            align: 'start',     
-                            crossAlign: 'near',
-                         // mirror: true
-                        }
-                    }
+                    y: { ticks: { align: 'start', crossAlign: 'near' } }
                 }
             }
         });
+
         lineChart = new Chart(document.getElementById('lineTrend'), {
             type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Avg Duration (sec)',
-                    data: [], // {x: date, y: avg}
-                    borderColor: '#10b981',
-                    tension: 0.3
-                }]
-            },
+            data: { datasets: [{ label: 'Avg Duration (sec)', data: [], borderColor: '#10b981', tension: 0.3 }] },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
                     x: {
                         type: 'time',
-                        time: {
-                            unit: 'day',
-                            tooltipFormat: 'yyyy-MM-dd'
-                        },
-                        ticks: {
-                            autoSkip: true,
-                            maxRotation: 45,
-                            minRotation: 45
-                        }
+                        time: { unit: 'day', tooltipFormat: 'yyyy-MM-dd' },
+                        ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 }
                     },
-                    y: {
-                        beginAtZero: true
-                    }
+                    y: { beginAtZero: true }
                 },
                 plugins: {
                     tooltip: {
@@ -290,8 +323,8 @@
                                 const p = context.raw;
                                 return [
                                     `Average Duration: ${p.y.toFixed(2)} sec`,
-                                    `Total Duration: ${p.totalDuration.toFixed(2)} sec`,
-                                    `Count: ${p.count}`
+                                    `Total Duration: ${p.totalDuration?.toFixed(2) ?? 0} sec`,
+                                    `Count: ${p.count ?? 0}`
                                 ];
                             }
                         }
@@ -299,50 +332,69 @@
                 }
             }
         });
-
     }
 
-    function loadAll(date, client) {
+    // ⚡ Updated: loadAll waits for all loads to complete
+    async function loadAll(date, client) {
+        showLoader();
         $('#updatedAt').text(new Date().toLocaleString());
-        loadStatus(date, client);
-        loadOverallStatus(client);
-        loadTestsPerRun(date, client);
-        loadDurationTrend(client);
-        loadRecentRuns(date, client);
-        loadTestHistory(date, $("#historyTestId").val(), client, $("#ScreenId").val()) // 🔹 also refresh history  $("#historyTestId").val(),$("#ScreenId").val()
+
+        try {
+            const res = await fetch(`/api/DashboardApi/status-summary?client=${client}&date=${date}`);
+            const data = await res.json();
+
+            if (data.error) {
+                showErrorModal(data.error);
+                return;
+            }
+
+            await Promise.all([
+                loadStatus(date, client),
+                loadOverallStatus(client),
+                loadTestsPerRun(date, client),
+                loadDurationTrend(client),
+                loadRecentRuns(date, client),
+                loadTestHistory(date, $("#historyTestId").val(), client, $("#ScreenId").val())
+            ]);
+
+        } catch (err) {
+            showErrorModal("An unexpected error occurred.");
+        } finally {
+            hideLoader();
+        }
     }
 
-    function loadStatus(date, client) { 
-        // build query params dynamically
+    // ⚡ Updated: Return promises from all load functions
+
+    function loadStatus(date, client) {
         let query = [];
         if (date) query.push("date=" + encodeURIComponent(date));
         if (client) query.push("client=" + encodeURIComponent(client));
 
-        $.getJSON(api.statusSummary + (query.length ? "?" + query.join("&") : ""), function (data) {
-            $('#passCount').text("Pass - " + data.pass);
-            $('#failCount').text("Fail - " + data.fail);
-            const total = data.pass + data.fail;
-            $('#totalRuns').text(total);
-            $('#passPct').text(total ? Math.round(100 * data.pass / total) + '%' : '0%');
-            pieChart.data.datasets[0].data = [data.pass, data.fail];
-           
-            pieChart.update();
-        });
+        return $.getJSON(api.statusSummary + (query.length ? "?" + query.join("&") : ""))
+            .then(data => {
+                $('#passCount').text("Pass - " + data.pass);
+                $('#failCount').text("Fail - " + data.fail);
+                const total = data.pass + data.fail;
+                $('#totalRuns').text(total);
+                $('#passPct').text(total ? Math.round(100 * data.pass / total) + '%' : '0%');
+                pieChart.data.datasets[0].data = [data.pass, data.fail];
+                pieChart.update();
+            });
     }
 
     function loadOverallStatus(client) {
         let query = [];
         if (client) query.push("client=" + encodeURIComponent(client));
 
-        $.getJSON(api.overallStatusSummary + (query.length ? "?" + query.join("&") : ""), function (overall) {
-            $('#overallPassCount').text("Pass - " + overall.pass);
-            $('#overallFailCount').text("Fail - " + overall.fail);
-            const total = overall.pass + overall.fail;
-            $('#overallTotalRuns').text(total);
-            $('#overallPassPct').text(total ? Math.round(100 * overall.pass / total) + '%' : '0%');
-            // pieChart.data.datasets[0].data = [data.passed, data.failed];
-            // pieChart.update();
-        });
+        return $.getJSON(api.overallStatusSummary + (query.length ? "?" + query.join("&") : ""))
+            .then(overall => {
+                $('#overallPassCount').text("Pass - " + overall.pass);
+                $('#overallFailCount').text("Fail - " + overall.fail);
+                const total = overall.pass + overall.fail;
+                $('#overallTotalRuns').text(total);
+                $('#overallPassPct').text(total ? Math.round(100 * overall.pass / total) + '%' : '0%');
+            });
     }
 
     function loadTestsPerRun(date, client) {
@@ -350,12 +402,13 @@
         if (date) query.push("date=" + encodeURIComponent(date));
         if (client) query.push("client=" + encodeURIComponent(client));
 
-        $.getJSON(api.testsPerRun + (query.length ? "?" + query.join("&") : ""), function (data) {
-            const top = data.slice(0, 20);
-            barChart.data.labels = top.map(x => x.testName);
-            barChart.data.datasets[0].data = top.map(x => x.count);
-            barChart.update();
-        });
+        return $.getJSON(api.testsPerRun + (query.length ? "?" + query.join("&") : ""))
+            .then(data => {
+                const top = data.slice(0, 20);
+                barChart.data.labels = top.map(x => x.testName);
+                barChart.data.datasets[0].data = top.map(x => x.count);
+                barChart.update();
+            });
     }
 
     function loadDurationTrend(client) {
@@ -363,107 +416,78 @@
         if (client) query.push("client=" + encodeURIComponent(client));
         query.push("days=14");
 
-        $.getJSON(api.durationTrend + (query.length ? "?" + query.join("&") : ""), function (data) {
-            lineChart.data.datasets[0].data = data.map(x => ({
-                x: new Date(x.date),
-                y: parseFloat(x.avgDuration),
-                totalDuration: parseFloat(x.totalDuration),
-                count: x.count
-            }));
-            lineChart.update();
-        });
+        return $.getJSON(api.durationTrend + (query.length ? "?" + query.join("&") : ""))
+            .then(data => {
+                lineChart.data.datasets[0].data = data.map(x => ({
+                    x: new Date(x.date),
+                    y: parseFloat(x.avgDuration),
+                    totalDuration: parseFloat(x.totalDuration),
+                    count: x.count
+                }));
+                lineChart.update();
+            });
     }
 
     function loadRecentRuns(date, client) {
         let query = [];
         if (date) query.push("date=" + encodeURIComponent(date));
         if (client) query.push("client=" + encodeURIComponent(client));
-        $.getJSON(api.recentRuns + (query.length ? "?" + query.join("&") : ""), function (data) {
-            $('#recentRuns').html(data.map((r, index) => `
-                <tr>
-                    <td>${index + 1}</td> <!-- 🔹 Serial number -->
-                    <td>${(() => {
-                    const d = new Date(r.startTime);
-                    const pad = (n) => n.toString().padStart(2, '0');
-                    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                })()}</td>
-                        <td>${r.testID || ''}</td>
-                        <td>${r.screen}</td>
-                        <td>${r.testName}</td>
-                        <td>${r.durationSeconds}</td>
-                        <td>
-                            <span class="badge ${r.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
-                                ${r.status}
-                            </span>
-                        </td>
-                    </tr>`
-            ).join(''));
-        });
+
+        return $.getJSON(api.recentRuns + (query.length ? "?" + query.join("&") : ""))
+            .then(data => {
+                $('#recentRuns').html(data.map((r, index) => `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${formatDate(r.startTime)}</td>
+                            <td>${r.testID || ''}</td>
+                            <td>${r.screen}</td>
+                            <td>${r.testName}</td>
+                            <td>${r.durationSeconds}</td>
+                            <td><span class="badge ${r.status === 'Pass' ? 'bg-success' : 'bg-danger'}">${r.status}</span></td>
+                        </tr>`
+                ).join(''));
+            });
     }
 
-    // 🔹 Load Test History (fills dropdown only if empty)
     function loadTestHistory(date, testId, client, screen) {
         let query = [];
         if (date) query.push("date=" + encodeURIComponent(date));
-        if (testId) query.push("testId=" + encodeURIComponent(testId))
+        if (testId) query.push("testId=" + encodeURIComponent(testId));
         if (client) query.push("client=" + encodeURIComponent(client));
         if (screen) query.push("screen=" + encodeURIComponent(screen));
 
-        $.getJSON(api.testHistory + (query.length ? "?" + query.join("&") : ""), function (data) {
-            // Only populate dropdown if it's empty (avoid resetting selection)
-            if ($("#historyTestId option").length <= 1) {
-                $("#historyTestId").empty().append('<option value="">All</option>');
-                [...new Set(data.map(d => d.testID))].forEach(id => {
-                    $("#historyTestId").append(`<option value="${id}">${id}</option>`);
-                });
-            }
-            // 🔹 Populate Screen dropdown (if empty)
-            if ($("#ScreenId option").length <= 1) {
-                $("#ScreenId").empty().append('<option value="">All</option>');
-                [...new Set(data.map(d => d.screen))].forEach(screenName => {
-                    if (screenName) {
-                        $("#ScreenId").append(`<option value="${screenName}">${screenName}</option>`);
-                    }
-                });
-            }
-
-
-            // // Fill table with S.no
-            // $("#testHistoryTable").html(data.map((item, index) => `
-            //     <tr>
-            //         <td>${index + 1}</td> <!-- 🔹 Serial number -->
-            //         <td>${(() => {
-            //         const d = new Date(item.startTime);
-            //         const pad = (n) => n.toString().padStart(2, '0');
-            //         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-            //           })()}</td>
-            //         <td>${item.testID}</td>
-            //         <td>${item.screen}</td>
-            //         <td>${item.testName}</td>
-            //         <td>${item.duration}</td>
-            //         <td>
-            //             <span class="badge ${item.status === 'Pass' ? 'bg-success' : 'bg-danger'}">
-            //                 ${item.status}
-            //             </span>
-            //         </td>
-            //     </tr>`
-            // ).join(''));
-
-            // Save all rows in global variable
-            testHistoryData = data;
-
-            // Reset to first page whenever new data is loaded
-            currentPage = 1;
-
-            // Render the first page
-            renderTestHistoryTable();
-
-            // Setup buttons and page size dropdown
-            setupPaginationControls();
-
-        });
+        return $.getJSON(api.testHistory + (query.length ? "?" + query.join("&") : ""))
+            .then(data => {
+                if ($("#historyTestId option").length <= 1) {
+                    $("#historyTestId").empty().append('<option value="">All</option>');
+                    [...new Set(data.map(d => d.testID))].forEach(id => {
+                        $("#historyTestId").append(`<option value="${id}">${id}</option>`);
+                    });
+                }
+                if ($("#ScreenId option").length <= 1) {
+                    $("#ScreenId").empty().append('<option value="">All</option>');
+                    [...new Set(data.map(d => d.screen))].forEach(s => {
+                        if (s) $("#ScreenId").append(`<option value="${s}">${s}</option>`);
+                    });
+                }
+                testHistoryData = data;
+                currentPage = 1;
+                renderTestHistoryTable();
+                setupPaginationControls();
+            });
     }
 
+    // helpers
+    function formatDate(dt) {
+        const d = new Date(dt);
+        const pad = (n) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function showLoader() { $("#loadingOverlay").show(); }
+    function hideLoader() { $("#loadingOverlay").hide(); }
+
+    // Pagination + dropdown setup code ...
     let testHistoryData = []; // global store
     let currentPage = 1;
     let pageSize = 10;
@@ -542,7 +566,6 @@
                 return null;
             });
     }
-
    
     function loadScreens() {
         return fetch('/screens.json')   // make sure screens.json is in wwwroot
@@ -559,6 +582,15 @@
                 });
             })
             .catch(err => console.error("Error loading screens.json:", err));
+    }
+
+    function showErrorModal(message) {
+        const modalEl = document.getElementById('errorModal');
+        const modalBody = document.getElementById('errorModalBody');
+        modalBody.textContent = message;
+
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
     }
 
     $(function () {
@@ -606,6 +638,7 @@
 
         // 🔹 Client dropdown change → reload all with current date
         $('#clientSelect').on('change', function () {
+            
             const client = $(this).val();
             const date = $('#dateSelect').val();
 

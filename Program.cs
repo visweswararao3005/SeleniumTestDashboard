@@ -16,7 +16,12 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
-
+// redirect root (/) to /Dashboard
+app.MapGet("/", context =>
+{
+    context.Response.Redirect("/Dashboard");
+    return Task.CompletedTask;
+});
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
