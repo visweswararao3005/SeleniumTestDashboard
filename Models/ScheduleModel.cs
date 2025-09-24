@@ -1,0 +1,17 @@
+﻿namespace TestDashboard.Models
+{
+    // Model for schedule
+    public class ScheduleModel
+    {
+        public int Id { get; set; }
+        public DateTime? CreatedDateTime { get; set; }
+        public string? ClientName { get; set; }
+        public string? TestsToBeRun { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public DateTime? LastRunTime { get; set; }
+        public string? DaysOfWeek { get; set; }
+        public string? AtTime { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

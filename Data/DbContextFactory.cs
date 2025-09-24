@@ -13,22 +13,11 @@ namespace TestDashboard.Data
             _config = config;
         }
 
-        public ApplicationDbContext Create(string client)
+        public ApplicationDbContext Create(string connectionString)
         {
-            if (string.IsNullOrEmpty(client))
-                throw new ArgumentNullException(nameof(client));
-
-            // Try to get connection string from appsettings.json
-            var conn = _config.GetConnectionString(client);
-
-            if (string.IsNullOrWhiteSpace(conn))
-            {
-                // Throw KeyNotFound so controller can catch and handle it gracefully
-                throw new KeyNotFoundException($"Client '{client}' is not configured.");
-            }
-
+            
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseSqlServer(conn)
+                .UseSqlServer(connectionString)
                 .Options;
 
             return new ApplicationDbContext(options);

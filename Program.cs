@@ -1,13 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using TestDashboard.Data;
+using TestDashboard.Helper;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register DbContext
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+);
+builder.Services.AddScoped<ClientsHelper>();
 
 // Register DbContextFactory (for dynamic DB selection)
 builder.Services.AddSingleton<DbContextFactory>();
 
 // We don’t register ApplicationDbContext here with a fixed connection string
 builder.Services.AddControllersWithViews();
+
+
 
 var app = builder.Build();
 

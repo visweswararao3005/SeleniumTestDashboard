@@ -1,28 +1,29 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using TestDashboard.Helper;
+using TestDashboard.Models;
 [Route("[controller]")]
 public class DashboardController : Controller
 {
+    private readonly ClientsHelper _clientsHelper;
+
+    public DashboardController(ClientsHelper clientsHelper)
+    {
+        _clientsHelper = clientsHelper;
+    }
     [HttpGet("")]
     [HttpGet("Index")] // allow both /Dashboard and /Dashboard/Index
-    public IActionResult Index() => View("~/Views/Dashboard/index.cshtml");
+    public IActionResult Index()
+    {
+        ViewBag.Clients = _clientsHelper.GetClients();
 
-    [HttpGet("Danyab")]
-    public IActionResult Danyab()
-    {
-        ViewBag.Client = "Danya B";
         return View("~/Views/Dashboard/index.cshtml");
     }
-    [HttpGet("Bestpet")]
-    public IActionResult BestPet()
+    [HttpGet("Scheduler")]
+    public IActionResult Scheduler()
     {
-        ViewBag.Client = "BestPet";
-        return View("~/Views/Dashboard/index.cshtml");
-    }
-    [HttpGet("Capital")]
-    public IActionResult Capital()
-    {
-        ViewBag.Client = "Capital";
-        return View("~/Views/Dashboard/index.cshtml");
-    }
+        ViewBag.Clients = _clientsHelper.GetClients();
+        ViewBag.TestNames = _clientsHelper.GetTestNames();
 
+        return View("~/Views/Scheduler/scheduler.cshtml");
+    }
 }
