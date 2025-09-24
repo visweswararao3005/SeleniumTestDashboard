@@ -3,97 +3,21 @@
     var client = ViewBag.Client as string ?? "";
 }
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"><!-- Bootstrap 5 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet"><!-- Bootstrap Icons -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
-
-<style>
-    /* quick custom polish */
-    .card-compact {
-        padding: 1rem;
-        border-radius: .75rem;
-        box-shadow: 0 6px 20px rgba(10,20,30,.06);
-    }
-
-    .metric {
-        font-weight: 700;
-        font-size: 1.6rem;
-    }
-
-    .sub {
-        color: #6c757d;
-        font-size: .9rem;
-    }
-
-    .chart-container {
-        display: flex;
-        justify-content: center; /* horizontal center */
-        align-items: center; /* vertical center */
-        height: 320px;
-    }
-
-    .small-txt {
-        font-size: .85rem;
-        color: #6c757d;
-    }
-
-    .table-wrap {
-        max-height: 360px;
-        overflow: auto;
-    }
-
-    .flatpickr-day.disabled {
-        color: #000 !important; /* Normal text color */
-        background: transparent !important; /* Keep normal background */
-        opacity: 1 !important; /* Remove faded look */
-        cursor: not-allowed; /* Show unselectable cursor */
-    }
-
-    #loadingOverlay {
-        display: none; /* hidden by default */
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.7);
-        z-index: 9999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-</style>
-
-<!-- 🔄 Loading Overlay -->
-<div id="loadingOverlay">
-    <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-</div>
-
-<!-- Error Modal -->
-<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-danger">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Error</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="errorModalBody">
-                <!-- Error message goes here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-danger" id="errorModalCloseBtn" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
 <div class="container py-4">
 
     <div class="sticky-header d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0">OPAL - Test Automation Dashboard</h2>
-
+       
         @if (string.IsNullOrEmpty(client))
         {
             <select id="clientSelect" class="form-select form-select-sm" style="width:160px"></select>
@@ -108,6 +32,10 @@
             <input id="dateSelect" class="form-control form-control-sm" style="width:160px" placeholder="Select date" />
             <button id="refreshBtn" class="btn btn-primary btn-sm">Refresh</button>
         </div>
+        <!-- 🔹 New Scheduler Button -->
+        <a href=@Url.Action("Scheduler", "Dashboard") class="btn btn-outline-primary">
+            <i class="bi bi-calendar-check"></i> Scheduler
+        </a>
     </div>
 
     <!-- KPI Cards -->
@@ -224,46 +152,86 @@
                 </select>
             </div>
         </div>
-        <div class="table-responsive">
+       
+        <div >
             <table class="table table-bordered table-hover">
                 <thead class="table-light">
-                    <tr><th>Sl.No</th><th>Time</th><th>TestCaseID</th><th>Screen</th><th>Test Name</th><th>Duration(sec)</th><th>Status</th></tr>
+                    <tr>
+                        <th>Sl.No</th>
+                        <th>Time</th>
+                        <th>TestCaseID</th>
+                        <th>Screen</th>
+                        <th>Test Name</th>
+                        <th>Duration(sec)</th>
+                        <th>Status</th>
+                    </tr>
                 </thead>
                 <tbody id="testHistoryTable"></tbody>
             </table>
-            <div class="d-flex justify-content-between align-items-center mt-2">
-                <div id="paginationControls" class="btn-group">
-                    <button id="firstPage" class="btn btn-sm btn-outline-secondary">|⯇</button>  @* First *@
-                    <button id="prevPage" class="btn btn-sm btn-outline-secondary">⯇</button> @* Prev *@
+        </div>
 
-                    <button id="nextPage" class="btn btn-sm btn-outline-secondary">⯈</button> @* Next *@
-                    <button id="lastPage" class="btn btn-sm btn-outline-secondary">⯈|</button>@* Last *@
-                </div>
-                <div>
-                    <label for="pageSize">Page size:</label>
-                    <select id="pageSize" class="form-select form-select-sm d-inline-block" style="width: auto;">
-                        <option value="5">5</option>
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                    </select>
-                </div>
+        <!-- Pagination (always below table, no scrolling needed) -->
+        <div class="d-flex align-items-center mt-2 border-top pt-2">
 
-                <div id="paginationControls" class="btn-group">
-                    <span id="pageInfo" class="mx-2 align-self-center small text-muted"></span>
+            <!-- Pagination Buttons (30%) -->
+            <div class="flex-grow-0 flex-shrink-0" style="flex-basis:30%;">
+                <div class="btn-group">
+                    <button id="firstPage" class="btn btn-sm btn-outline-secondary">|⯇</button>
+                    <button id="prevPage" class="btn btn-sm btn-outline-secondary">⯇</button>
+                    <button id="nextPage" class="btn btn-sm btn-outline-secondary">⯈</button>
+                    <button id="lastPage" class="btn btn-sm btn-outline-secondary">⯈|</button>
                 </div>
             </div>
+
+            <!-- Page Size (30%) -->
+            <div class="text-center flex-grow-0 flex-shrink-0" style="flex-basis:30%;">
+                <label for="pageSize" class="me-1">Page size:</label>
+                <select id="pageSize" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                </select>
+            </div>
+
+            <!-- Page Info (40%) -->
+            <div class="text-end flex-grow-0 flex-shrink-0" style="flex-basis:40%;">
+                <span id="pageInfo" class="mx-2 align-self-center small text-muted"></span>
+            </div>
         </div>
+
     </div>
 
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<!-- 🔄 Loading Overlay -->
+<div id="loadingOverlay">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Error</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="errorModalBody">
+                <!-- Error message goes here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="errorModalCloseBtn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
+    const clients = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Clients ?? new List<string>()));
+
     // Reload page when modal "Close" button is clicked
     document.getElementById('errorModalCloseBtn').addEventListener('click', () => {
         location.reload();
@@ -365,7 +333,6 @@
     }
 
     // ⚡ Updated: Return promises from all load functions
-
     function loadStatus(date, client) {
         let query = [];
         if (date) query.push("date=" + encodeURIComponent(date));
@@ -485,6 +452,7 @@
     }
 
     function showLoader() { $("#loadingOverlay").show(); }
+
     function hideLoader() { $("#loadingOverlay").hide(); }
 
     // Pagination + dropdown setup code ...
@@ -528,45 +496,40 @@
     }
 
     function setupPaginationControls() {
-        $("#firstPage").off("click").on("click", () => { currentPage = 1; renderTestHistoryTable(); });
-        $("#prevPage").off("click").on("click", () => { if (currentPage > 1) { currentPage--; renderTestHistoryTable(); } });
-        $("#nextPage").off("click").on("click", () => { if (currentPage * pageSize < testHistoryData.length) { currentPage++; renderTestHistoryTable(); } });
-        $("#lastPage").off("click").on("click", () => { currentPage = Math.ceil(testHistoryData.length / pageSize); renderTestHistoryTable(); });
+        $("#firstPage").off("click").on("click", () => { currentPage = 1; renderTestHistoryTable(); window.scrollTo(0, document.body.scrollHeight); }); /* window.scrollTo(0, document.body.scrollHeight); */
+        $("#prevPage").off("click").on("click", () => { if (currentPage > 1) { currentPage--; renderTestHistoryTable(); } window.scrollTo(0, document.body.scrollHeight); });
+        $("#nextPage").off("click").on("click", () => { if (currentPage * pageSize < testHistoryData.length) { currentPage++; renderTestHistoryTable(); } window.scrollTo(0, document.body.scrollHeight); });
+        $("#lastPage").off("click").on("click", () => { currentPage = Math.ceil(testHistoryData.length / pageSize); renderTestHistoryTable(); window.scrollTo(0, document.body.scrollHeight); });
 
         $("#pageSize").off("change").on("change", function () {
             pageSize = parseInt($(this).val());
             currentPage = 1; // reset to first page
             renderTestHistoryTable();
+            window.scrollTo(0, document.body.scrollHeight);
         });
     }
 
     function loadClients() {
-        return fetch('/clients.json?cacheBust=' + Date.now()) // ✅ return this
-            .then(response => response.json())
-            .then(data => {
-                const select = document.getElementById("clientSelect");
-                select.innerHTML = "";
+        return new Promise((resolve) => {
+            const select = document.getElementById("clientSelect");
+            select.innerHTML = "";
 
-                data.clients.forEach(client => {
-                    const option = document.createElement("option");
-                    option.value = client;
-                    option.textContent = client;
+            clients.forEach((client, index) => {
+                const option = document.createElement("option");
+                option.value = client;
+                option.textContent = client;
 
-                    if (client === data.defaultClient) {
-                        option.selected = true;
-                    }
+                if (index === 0) { // ✅ select the first as default
+                    option.selected = true;
+                }
 
-                    select.appendChild(option);
-                });
-
-                return data.defaultClient || data.clients[0]; // fallback
-            })
-            .catch(err => {
-                console.error("Error loading clients.json:", err);
-                return null;
+                select.appendChild(option);
             });
+
+            resolve(clients[0] || null); // ✅ first client as default
+        });
     }
-   
+
     function loadScreens() {
         return fetch('/screens.json')   // make sure screens.json is in wwwroot
             .then(response => response.json())
@@ -593,13 +556,29 @@
         modal.show();
     }
 
-    $(function () {
+    $(function () {  
+        // 🔹 Client dropdown change → reload all with current date
+        $('#clientSelect').on('change', function () {
+
+            const client = $(this).val();
+            const date = $('#dateSelect').val();
+
+            // 🔹 Scroll to top
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            // 🔹 Clear History dropdown
+            $("#historyTestId").empty().append('<option value="">All</option>');
+            $("#ScreenId").empty().append('<option value="">All</option>');
+            loadAll(date, client); // 🔹 pass both
+        });
+
         // Top date picker
         flatpickr('#dateSelect', {
             dateFormat: 'Y-m-d',
             defaultDate: new Date(),
             onChange: (d, str) => {
                 const client = $('#clientSelect').val();
+                // 🔹 Scroll to top
+                window.scrollTo({ top: 0, behavior: "smooth" });
                 // 🔹 Clear History dropdown
                 $("#historyTestId").empty().append('<option value="">All</option>');
                 $("#ScreenId").empty().append('<option value="">All</option>');
@@ -611,6 +590,9 @@
         $('#refreshBtn').click(() => {
             const date = $('#dateSelect').val();
             const client = $('#clientSelect').val();
+
+            // 🔹 Scroll to top 
+            window.scrollTo({ top: 0, behavior: "smooth" });
 
             // 🔹 Reset dropdowns back to "All"
             $("#historyTestId").val("");
@@ -636,18 +618,6 @@
             loadTestHistory(date, selectedId, client, screen);
         });
 
-        // 🔹 Client dropdown change → reload all with current date
-        $('#clientSelect').on('change', function () {
-            
-            const client = $(this).val();
-            const date = $('#dateSelect').val();
-
-            // 🔹 Clear History dropdown
-            $("#historyTestId").empty().append('<option value="">All</option>');
-            $("#ScreenId").empty().append('<option value="">All</option>');
-            loadAll(date, client); // 🔹 pass both
-        });
-
         // Initialize
         initCharts();
         const today = new Date().toISOString().split('T')[0];
@@ -660,4 +630,3 @@
     });
 
 </script>
-

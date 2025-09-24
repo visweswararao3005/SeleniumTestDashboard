@@ -3,17 +3,22 @@ using TestDashboard.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;  // ✅ Needed for KeyNotFoundException
+using System.Collections.Generic;
+using TestDashboard.Helper;
+using TestDashboard.Models;  // ✅ Needed for KeyNotFoundException
 
 [Route("api/[controller]")]
 [ApiController]
 public class DashboardApiController : ControllerBase
 {
     private readonly DbContextFactory _factory;
-
-    public DashboardApiController(DbContextFactory factory)
+    private readonly ClientsHelper _clientsHelper;
+    private readonly IConfiguration _config;
+    public DashboardApiController(DbContextFactory factory, ClientsHelper clientsHelper, IConfiguration config)
     {
         _factory = factory;
+        _clientsHelper = clientsHelper;
+        _config = config;
     }
 
     // Pie: Pass vs Fail counts (today or range)
@@ -22,8 +27,12 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
-
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return NotFound(new { error = $"Configuration for '{client}' is not complete, please contact OPAL Support." });
+            }
+            using var _db = _factory.Create(connectionString);
             var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
             var q = _db.TestRunResults.Where(r => r.RunDate == target.Date);
             var pass = await q.CountAsync(r => r.Status == "Pass" && r.ClientName == client);
@@ -42,7 +51,10 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrEmpty(connectionString))
+                throw new KeyNotFoundException($"Configuration for '{client}' is not complete, please contact OPAL Support.");
+            using var _db = _factory.Create(connectionString);
             var q = _db.TestRunResults;
             var pass = await q.CountAsync(r => r.Status == "Pass" && r.ClientName == client);
             var fail = await q.CountAsync(r => r.Status == "Fail" && r.ClientName == client);
@@ -60,7 +72,10 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrEmpty(connectionString))
+                throw new KeyNotFoundException($"Configuration for '{client}' is not complete, please contact OPAL Support.");
+            using var _db = _factory.Create(connectionString);
 
             var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
             var data = await _db.TestRunResults
@@ -83,7 +98,10 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrEmpty(connectionString))
+                throw new KeyNotFoundException($"Configuration for '{client}' is not complete, please contact OPAL Support.");
+            using var _db = _factory.Create(connectionString);
 
             var start = DateTime.Today.AddDays(-days + 1);
 
@@ -114,7 +132,10 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrEmpty(connectionString))
+                throw new KeyNotFoundException($"Configuration for '{client}' is not complete, please contact OPAL Support.");
+            using var _db = _factory.Create(connectionString);
 
             var latestRunId = await _db.TestRunResults
                 .Where(t => t.ClientName == client)
@@ -151,7 +172,10 @@ public class DashboardApiController : ControllerBase
     {
         try
         {
-            using var _db = _factory.Create(client);
+            string connectionString = _clientsHelper.GetClientConnectionString(client);
+            if (string.IsNullOrEmpty(connectionString))
+                throw new KeyNotFoundException($"Configuration for '{client}' is not complete, please contact OPAL Support.");
+            using var _db = _factory.Create(connectionString);
             var target = string.IsNullOrEmpty(date) ? DateTime.Today : DateTime.Parse(date);
 
             var query = _db.TestRunResults
@@ -188,4 +212,119 @@ public class DashboardApiController : ControllerBase
             return NotFound(new { error = ex.Message });
         }
     }
+
+
+
+    [HttpPost("SaveSchedule")]
+    public IActionResult SaveSchedule([FromBody] ScheduleDto model)
+    {
+        if (string.IsNullOrWhiteSpace(model.ClientName))
+            return BadRequest(new { success = false, message = "Client name required" });
+
+        string connectionString = _config.GetConnectionString("DefaultConnection");
+        using var _db = _factory.Create(connectionString);
+
+        ScheduleModel entity;
+
+        if (model.Id > 0) // 🔹 Update existing
+        {
+            entity = _db.TestSchedules.FirstOrDefault(s => s.Id == model.Id);
+            if (entity == null)
+                return NotFound(new { success = false, message = "Schedule not found" });
+        }
+        else // 🔹 New insert
+        {
+            entity = new ScheduleModel();
+            _db.TestSchedules.Add(entity);
+        }
+        DateTime? toDate = model.ToDate;
+        if (model.ToDate != null)
+        {
+            // Add 1 day and subtract 1 second to get 23:59:59 of the same day
+            toDate = model.ToDate.Value.Date.AddDays(1).AddSeconds(-1);
+        }
+        entity.CreatedDateTime = DateTime.Now;
+        entity.ClientName = model.ClientName;
+        entity.TestsToBeRun = string.Join(",", model.TestsToBeRun);
+        entity.FromDate = model.FromDate;
+        entity.ToDate = toDate;
+        entity.DaysOfWeek = model.DayOfWeek.Count != 0 ? string.Join(",", model.DayOfWeek) : null;
+        entity.AtTime = model.AtTime;
+        entity.IsActive = true;
+
+        _db.SaveChanges();
+        return Ok(new { success = true, message = "Schedule saved successfully" });
+    }
+    public class ScheduleDto
+    {
+        public int Id { get; set; }
+        public string ClientName { get; set; }
+        public List<string> TestsToBeRun { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public List<string> DayOfWeek { get; set; }
+        public string AtTime { get; set; }
+    }
+
+    [HttpGet("GetSchedulesByClient")]
+    public IActionResult GetSchedulesByClient(string clientName)
+    {
+
+        if (string.IsNullOrWhiteSpace(clientName))
+            return BadRequest("Client name required");
+
+        string connectionString = _config.GetConnectionString("DefaultConnection");
+
+        using var _db = _factory.Create(connectionString);
+        var schedules = _db.TestSchedules
+                     .Where(s => s.ClientName == clientName && s.IsActive == true)
+                     .OrderByDescending(s => s.Id)
+                     .Select(s => new
+                     {
+                        id = s.Id,
+                        clientName = s.ClientName ?? string.Empty,
+                        testsToBeRun = s.TestsToBeRun ?? string.Empty,
+                        fromDate = s.FromDate,
+                        toDate = s.ToDate,
+                        daysOfWeek = s.DaysOfWeek ?? "ALL",
+                        atTime = s.AtTime ?? string.Empty,
+                        lastRunTime = s.LastRunTime
+                     })
+                     .ToList();
+        return Ok(schedules);
+    }
+
+    [HttpGet("GetTestsByClient")]
+    public IActionResult GetTestsByClient(string clientName)
+    {
+        if (string.IsNullOrWhiteSpace(clientName))
+            return BadRequest("Client name required");
+
+        string connectionString = _config.GetConnectionString("DefaultConnection");
+        using var _db = _factory.Create(connectionString);
+        // fetch tests from your DB (example)
+        var tests = _db.ClientTestCases
+            .Where(t => t.ClientName == clientName)
+            .Select(t => new { testCaseName = t.TestCaseName })
+            .ToList();
+
+        return Ok(tests);
+    }
+
+    [HttpPost("DeactivateSchedule")]
+    public IActionResult DeactivateSchedule(int id)
+    {
+        string connectionString = _config.GetConnectionString("DefaultConnection");
+        using var _db = _factory.Create(connectionString);
+
+        var entity = _db.TestSchedules.FirstOrDefault(s => s.Id == id);
+        if (entity == null)
+            return NotFound(new { success = false, message = "Schedule not found" });
+
+        entity.IsActive = false;
+        _db.SaveChanges();
+
+        return Ok(new { success = true, message = "Schedule deactivated successfully" });
+    }
+
 }

@@ -61,3 +61,65 @@ footer .container {
     border-bottom: 1px solid #dee2e6; /* optional, like a navbar */
 }
 
+.required::after {
+    content: " *";
+    color: red;
+}
+#clientTable tbody tr:hover {
+    cursor: pointer;
+    background-color: #f8f9fa; /* optional highlight */
+}
+/* quick custom polish */
+.card-compact {
+    padding: 1rem;
+    border-radius: .75rem;
+    box-shadow: 0 6px 20px rgba(10,20,30,.06);
+}
+
+.metric {
+    font-weight: 700;
+    font-size: 1.6rem;
+}
+
+.sub {
+    color: #6c757d;
+    font-size: .9rem;
+}
+
+.chart-container {
+    display: flex;
+    justify-content: center; /* horizontal center */
+    align-items: center; /* vertical center */
+    height: 320px;
+}
+
+.small-txt {
+    font-size: .85rem;
+    color: #6c757d;
+}
+
+.table-wrap {
+    max-height: 360px;
+    overflow: auto;
+}
+
+.flatpickr-day.disabled {
+    color: #000 !important; /* Normal text color */
+    background: transparent !important; /* Keep normal background */
+    opacity: 1 !important; /* Remove faded look */
+    cursor: not-allowed; /* Show unselectable cursor */
+}
+
+#loadingOverlay {
+    display: none; /* hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
