@@ -123,3 +123,9 @@ footer .container {
     justify-content: center;
     align-items: center;
 }
+/* Highlight selected row */
+#clientTableSection tbody tr.table-active-row {
+    background-color: yellow !important; /* Your highlight color */
+    font-weight: 500;
+    color: yellow; /* ensure text is readable */
+}
