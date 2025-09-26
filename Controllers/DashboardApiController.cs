@@ -21,6 +21,8 @@ public class DashboardApiController : ControllerBase
         _config = config;
     }
 
+    #region Dashboard 
+
     // Pie: Pass vs Fail counts (today or range)
     [HttpGet("status-summary")]
     public async Task<IActionResult> StatusSummary(string client, string date = null)
@@ -213,7 +215,9 @@ public class DashboardApiController : ControllerBase
         }
     }
 
+    #endregion
 
+    #region Schedular Management
 
     [HttpPost("SaveSchedule")]
     public IActionResult SaveSchedule([FromBody] ScheduleDto model)
@@ -237,24 +241,59 @@ public class DashboardApiController : ControllerBase
             entity = new ScheduleModel();
             _db.TestSchedules.Add(entity);
         }
+
+        // 🔹 Date adjustment
         DateTime? toDate = model.ToDate;
         if (model.ToDate != null)
         {
-            // Add 1 day and subtract 1 second to get 23:59:59 of the same day
             toDate = model.ToDate.Value.Date.AddDays(1).AddSeconds(-1);
         }
+
         entity.CreatedDateTime = DateTime.Now;
         entity.ClientName = model.ClientName;
-        entity.TestsToBeRun = string.Join(",", model.TestsToBeRun);
+        entity.TestsToBeRun = model.TestsToBeRun != null ? string.Join(",", model.TestsToBeRun) : null;
+        entity.DaysOfWeek = (model.DayOfWeek != null && model.DayOfWeek.Count > 0 && !(model.DayOfWeek.Count == 1 && model.DayOfWeek[0] == "All"))
+            ? string.Join(",", model.DayOfWeek)
+            : null;
+
+
         entity.FromDate = model.FromDate;
         entity.ToDate = toDate;
-        entity.DaysOfWeek = model.DayOfWeek.Count != 0 ? string.Join(",", model.DayOfWeek) : null;
         entity.AtTime = model.AtTime;
         entity.IsActive = true;
 
+        // 🔹 Day-of-week handling
+        if (model.DayOfWeek != null && model.DayOfWeek.Contains("All"))
+        {
+            entity.All = true;
+            entity.Monday = true;
+            entity.Tuesday = true;
+            entity.Wednesday = true;
+            entity.Thursday = true;
+            entity.Friday = true;
+            entity.Saturday = true;
+            entity.Sunday = true;
+        }
+        else
+        {
+            entity.Monday = model.DayOfWeek?.Contains("Monday") ?? false;
+            entity.Tuesday = model.DayOfWeek?.Contains("Tuesday") ?? false;
+            entity.Wednesday = model.DayOfWeek?.Contains("Wednesday") ?? false;
+            entity.Thursday = model.DayOfWeek?.Contains("Thursday") ?? false;
+            entity.Friday = model.DayOfWeek?.Contains("Friday") ?? false;
+            entity.Saturday = model.DayOfWeek?.Contains("Saturday") ?? false;
+            entity.Sunday = model.DayOfWeek?.Contains("Sunday") ?? false;
+
+            // ✅ If all 7 days selected, set All = true
+            entity.All = entity.Monday && entity.Tuesday && entity.Wednesday &&
+                         entity.Thursday && entity.Friday && entity.Saturday && entity.Sunday;
+        }
+
         _db.SaveChanges();
+
         return Ok(new { success = true, message = "Schedule saved successfully" });
     }
+
     public class ScheduleDto
     {
         public int Id { get; set; }
@@ -288,7 +327,16 @@ public class DashboardApiController : ControllerBase
                         toDate = s.ToDate,
                         daysOfWeek = s.DaysOfWeek ?? "ALL",
                         atTime = s.AtTime ?? string.Empty,
-                        lastRunTime = s.LastRunTime
+                        lastRunTime = s.LastRunTime,
+
+                        all = s.All,
+                        monday = s.Monday,
+                        tuesday = s.Tuesday,
+                        wednesday = s.Wednesday,
+                        thursday = s.Thursday,
+                        friday = s.Friday,
+                        saturday = s.Saturday,
+                        sunday = s.Sunday
                      })
                      .ToList();
         return Ok(schedules);
@@ -327,4 +375,5 @@ public class DashboardApiController : ControllerBase
         return Ok(new { success = true, message = "Schedule deactivated successfully" });
     }
 
+    #endregion
 }
